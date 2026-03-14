@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "kr-law-mcq": {
+      "url": "https://law-open-data-dedicated-mcp.onrender.com/mcp"
+    }
+  }
+}
