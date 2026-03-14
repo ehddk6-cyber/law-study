@@ -1,0 +1,19 @@
+[project]
+name = "law-open-data-dedicated-mcp"
+version = "0.1.0"
+description = "Dedicated Korean law MCP with explicit source-type tools"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastmcp",
+    "uvicorn",
+    "pydantic",
+    "python-dotenv",
+    "requests",
+    "cachetools",
+    "fastapi",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

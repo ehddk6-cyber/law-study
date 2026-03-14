@@ -1,0 +1,1 @@
+"""Dedicated law MCP package."""
