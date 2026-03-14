@@ -1,6 +1,6 @@
 """
 Query Planner - 검색 쿼리 생성 및 최적화 유틸리티
-자연어 질문 → 검색 API용 쿼리 세트 변환
+자연어 질문 → 검색 API 용 쿼리 변환
 """
 import re
 from typing import List, Dict, Optional, Tuple
@@ -27,9 +27,20 @@ KOREAN_STOPWORDS = {
 
 # 법률 핵심 키워드 (우선순위 높음)
 LEGAL_CORE_KEYWORDS = {
+    # 근로
     "근로", "종속", "지휘", "감독", "출퇴근", "전속", "도급", "위장", "프리랜서",
     "임금", "퇴직금", "해고", "부당", "계약", "고용", "근로자", "사용자",
-    "법률", "법령", "조문", "항", "호", "목",
+    # 헌법·행정법
+    "헌법", "행정법", "행정", "처분", "공권력", "기본권", "평등", "자유권", "사회권",
+    "위헌", "헌법재판소", "헌재", "대법원", "판례",
+    "무효", "취소", "하자", "중대", "명백", "명백성", "중대성",
+    "소송", "심판", "재결", "항고", "항소", "상고", "고등", "지법",
+    "처분성", "공권력성", "기속력", "재량", "재량권", "재량남용",
+    "원고적격", "피고적격", "소송요건", "당사자", "참가",
+    "정보공개", "개인정보", "행정절차", "청문", "공청회", "예고",
+    "국가배상", "손해배상", "위법", "귀책",
+    "조문", "항", "호", "목", "조", "법률", "법령", "규칙", "규정",
+    # 일반 법률
     "판례", "결정", "심판", "재판", "소송",
     "재산", "분할", "상속", "혼인", "이혼",
     "손해", "배상", "계약", "위약", "불법",
@@ -42,34 +53,56 @@ LEGAL_CORE_KEYWORDS = {
 LEGAL_SYNONYMS: Dict[str, List[str]] = {
     # 근로자성 관련
     "프리랜서": ["위장도급", "특수형태근로종사자", "도급계약", "위탁계약"],
-    "근로자성": ["사용종속관계", "지휘감독", "종속적 노무제공", "근로관계"],
+    "근로자성": ["사용종속관계", "지휘감독", "종속적노무제공", "근로관계"],
     "사용종속관계": ["근로자성", "종속관계", "지휘감독관계"],
     "지휘감독": ["근로자성", "사용종속관계", "종속성"],
     "출퇴근": ["근무시간", "근무장소", "통제"],
     "전속성": ["전속근로", "배타적 근로"],
-    
+
     # 임금 관련
     "임금": ["급여", "봉급", "월급", "보수"],
     "퇴직금": ["퇴직급여", "퇴직보상금"],
     "해고": ["해직", "정리해고", "부당해고"],
-    
+
     # 계약 관련
     "계약": ["계약서", "합의", "약정"],
     "위약": ["위약금", "손해배상"],
-    
+
     # 재산 관련
     "재산분할": ["재산분할청구", "재산분할소송"],
     "상속": ["상속분", "상속재산"],
+
+    # 헌법·행정법 관련
+    "무효": ["당연무효", "무효등확인", "무효확인"],
+    "취소": ["취소소송", "취등", "취소등"],
+    "하자": ["위법", "불법", "하자인계", "하자승계"],
+    "중대": ["중대한하자", "중대하자"],
+    "명백": ["명백한하자", "명백하자"],
+    "명백성": ["중대성", "중대명백", "중대하고명백"],
+    "중대성": ["명백성", "중대명백", "중대하고명백"],
+    "처분": ["행정처분", "행정결정", "공권력행사"],
+    "행정행위": ["행정처분", "공법행위", "권력적사실행위"],
+    "공권력": ["행정권", "국가권력", "권력적행사"],
+    "원고적격": ["소송요건", "당사자적격", "원고자격"],
+    "피고적격": ["당사자적격", "적격"],
+    "처분성": ["공권력성", "행정소송대상"],
+    "재량": ["재량권", "재량행사", "재량남용"],
+    "재량남용": ["재량권일탈", "재량권남용", "재량한계초월"],
+    "정보공개": ["정보공개청구", "공개"],
+    "개인정보": ["개인정보보호", "개인정보유출"],
+    "행정절차": ["절차적정", "절차위반"],
+    "청문": ["공청회", "의견청취", "진술"],
+    "국가배상": ["국가배상청구", "배상"],
 }
 
 
 def remove_stopwords(text: str) -> str:
     """
     한국어 불용어를 제거합니다.
-    
+
     Args:
         text: 입력 텍스트
-        
+
     Returns:
         불용어가 제거된 텍스트
     """
@@ -82,37 +115,37 @@ def extract_keywords(text: str, min_length: int = 2) -> List[str]:
     """
     텍스트에서 핵심 키워드를 추출합니다.
     불용어 제거 + 법률 핵심 키워드 우선순위 적용
-    
+
     Args:
         text: 입력 텍스트
         min_length: 최소 키워드 길이
-        
+
     Returns:
         추출된 키워드 리스트 (우선순위 순)
     """
     # 1. 불용어 제거
     cleaned = remove_stopwords(text)
-    
+
     # 2. 단어 분리 (공백 기준)
     words = cleaned.split()
-    
+
     # 3. 핵심 키워드 우선순위 적용
     core_keywords = []
     other_keywords = []
-    
+
     for word in words:
         word = word.strip()
         if len(word) < min_length:
             continue
-        
+
         # 법률 핵심 키워드인지 확인 (부분 일치)
         is_core = any(core in word or word in core for core in LEGAL_CORE_KEYWORDS)
-        
+
         if is_core:
             core_keywords.append(word)
         else:
             other_keywords.append(word)
-    
+
     # 핵심 키워드 우선, 나머지 키워드 후순
     return core_keywords + other_keywords
 
@@ -121,19 +154,19 @@ def expand_synonyms(query: str, preserve_legal_axis: bool = True) -> List[str]:
     """
     동의어를 확장하여 쿼리 세트를 생성합니다.
     법리 축을 유지하면서 확장합니다.
-    
+
     Args:
         query: 원본 쿼리
         preserve_legal_axis: 법리 축 유지 여부
-        
+
     Returns:
         확장된 쿼리 리스트 (원본 포함)
     """
     queries = [query]  # 원본 포함
-    
+
     words = query.split()
     expanded_queries = []
-    
+
     for word in words:
         if word in LEGAL_SYNONYMS:
             synonyms = LEGAL_SYNONYMS[word]
@@ -142,7 +175,7 @@ def expand_synonyms(query: str, preserve_legal_axis: bool = True) -> List[str]:
                 new_query = query.replace(word, synonym)
                 if new_query != query:
                     expanded_queries.append(new_query)
-    
+
     # 중복 제거
     queries.extend(expanded_queries)
     return list(dict.fromkeys(queries))  # 순서 유지하면서 중복 제거
@@ -156,19 +189,19 @@ def build_query_set(
 ) -> List[Dict[str, any]]:
     """
     검색 쿼리 세트를 생성합니다.
-    
+
     Args:
         original_query: 원본 자연어 쿼리
         issue_type: 쟁점 유형 (예: "근로자성", "재산분할")
         must_include: 반드시 포함할 키워드 리스트
         exclude: 제외할 키워드 리스트
-        
+
     Returns:
         쿼리 세트 리스트 (각 쿼리는 dict 형태)
     """
     query_set = []
-    
-    # 1차: 원본 쿼리 (키워드 추출)
+
+    # 1 차: 원본 쿼리 (키워드 추출)
     keywords = extract_keywords(original_query)
     if keywords:
         query_set.append({
@@ -176,8 +209,17 @@ def build_query_set(
             "strategy": "keyword_extraction",
             "priority": 1
         })
-    
-    # 2차: must_include와 결합
+
+    # 1.5 차: 행정법·헌법 특화 쿼리 생성 (긴 문장 → 핵심 법리 조합)
+    admin_queries = _build_admin_law_queries(original_query)
+    for aq in admin_queries:
+        query_set.append({
+            "query": aq,
+            "strategy": "admin_law_specialized",
+            "priority": 1
+        })
+
+    # 2 차: must_include 와 결합
     if must_include:
         combined = " ".join(must_include + keywords[:3])
         query_set.append({
@@ -185,10 +227,10 @@ def build_query_set(
             "strategy": "must_include_combined",
             "priority": 2
         })
-    
-    # 3차: 동의어 확장
+
+    # 3 차: 동의어 확장
     if keywords:
-        base_query = " ".join(keywords[:3])  # 상위 3개 키워드만
+        base_query = " ".join(keywords[:3])  # 상위 3 개 키워드만
         expanded = expand_synonyms(base_query)
         for i, eq in enumerate(expanded[1:], start=1):  # 원본 제외
             query_set.append({
@@ -196,8 +238,8 @@ def build_query_set(
                 "strategy": f"synonym_expansion_{i}",
                 "priority": 3
             })
-    
-    # 4차: issue_type 기반 쿼리
+
+    # 4 차: issue_type 기반 쿼리
     if issue_type:
         issue_keywords = extract_keywords(issue_type)
         if issue_keywords:
@@ -206,36 +248,116 @@ def build_query_set(
                 "strategy": "issue_type_based",
                 "priority": 4
             })
-    
+
     # exclude 적용
     if exclude:
         query_set = [
             q for q in query_set
             if not any(ex in q["query"] for ex in exclude)
         ]
-    
+
     # priority 순으로 정렬
     query_set.sort(key=lambda x: x["priority"])
-    
+
     return query_set
+
+
+def _build_admin_law_queries(original_query: str) -> List[str]:
+    """
+    행정법·헌법 객관식 문장을 검색용 쿼리로 변환합니다.
+    긴 서술형 문장 → 핵심 법리 키워드 조합
+
+    Args:
+        original_query: 원본 자연어 쿼리
+
+    Returns:
+        변환된 쿼리 리스트
+    """
+    queries = []
+    keywords = extract_keywords(original_query)
+
+    # 행정법·헌법 관련 키워드 감지
+    admin_keywords = [k for k in keywords if any(ak in k for ak in [
+        "무효", "취소", "하자", "명백", "중대", "처분", "행정", "공권력",
+        "원고적격", "피고적격", "소송요건", "재량", "정보공개", "개인정보",
+        "행정절차", "청문", "국가배상", "헌법", "기본권", "위헌"
+    ])]
+
+    if not admin_keywords:
+        return queries
+
+    # 전략 1: 핵심 법리 2~3 개 조합 (가장 강력)
+    if len(admin_keywords) >= 2:
+        queries.append(" ".join(admin_keywords[:3]))
+
+    # 전략 2: "무효 + 명백" 같은 고정 조합
+    if "무효" in admin_keywords:
+        if "명백" in admin_keywords or "명백성" in admin_keywords:
+            queries.append("무효 명백성")
+            queries.append("무효 중대 명백")
+        if "하자" in admin_keywords:
+            queries.append("무효 하자 중대")
+        if "취소" in admin_keywords:
+            queries.append("무효 취소 구별")
+
+    # 전략 3: "중대성 + 명백성" 조합 (행정법 핵심 법리)
+    if "중대" in admin_keywords or "중대성" in admin_keywords:
+        if "명백" in admin_keywords or "명백성" in admin_keywords:
+            queries.append("중대성 명백성")
+            queries.append("중대 명백 하자")
+
+    # 전략 4: 처분성·공권력성 관련
+    if "처분" in admin_keywords or "처분성" in admin_keywords:
+        queries.append("처분성 공권력성")
+        queries.append("행정처분 소송대상")
+
+    # 전략 5: 소송요건 관련
+    if "원고적격" in admin_keywords or "피고적격" in admin_keywords:
+        queries.append("원고적격 피고적격")
+        queries.append("소송요건 당사자적격")
+
+    # 전략 6: 재량권 관련
+    if "재량" in admin_keywords:
+        if "남용" in admin_keywords or "일탈" in admin_keywords:
+            queries.append("재량권 남용 일탈")
+        queries.append("재량권 한계")
+
+    # 전략 7: 정보공개·개인정보
+    if "정보공개" in admin_keywords:
+        queries.append("정보공개청구 비공개")
+    if "개인정보" in admin_keywords:
+        queries.append("개인정보보호 공개제한")
+
+    # 전략 8: 행정절차·청문
+    if "청문" in admin_keywords or "공청회" in admin_keywords:
+        queries.append("청문 공청회 의견청취")
+    if "행정절차" in admin_keywords:
+        queries.append("행정절차 사전통지")
+
+    # 전략 9: 국가배상
+    if "국가배상" in admin_keywords or "배상" in admin_keywords:
+        queries.append("국가배상 위법 귀책")
+
+    # 중복 제거
+    return list(dict.fromkeys(queries))
 
 
 def calculate_date_range(years_back: int) -> Tuple[Optional[str], Optional[str]]:
     """
-    현재 날짜 기준으로 N년 전부터 현재까지의 날짜 범위를 계산합니다.
-    
+    현재 날짜 기준으로 N 년 전부터 현재까지의 날짜 범위를 계산합니다.
+
     Args:
-        years_back: 몇 년 전부터 (예: 5 = 5년 전부터)
-        
+        years_back: 몇 년 전부터 (예: 5 = 5 년 전부터)
+
     Returns:
         (date_from, date_to) 튜플 (YYYYMMDD 형식)
     """
     today = datetime.now()
     start_date = today - timedelta(days=years_back * 365)
-    
+
     date_from = start_date.strftime("%Y%m%d")
     date_to = today.strftime("%Y%m%d")
-    
+
     return date_from, date_to
 
 
@@ -246,23 +368,22 @@ def expand_date_range_stepwise(
 ) -> Tuple[Optional[str], Optional[str]]:
     """
     날짜 범위를 단계적으로 확장합니다.
-    5년(기본) → 10년 → 전체
-    
+    5 년 (기본) → 10 년 → 전체
+
     Args:
         current_date_from: 현재 시작일 (YYYYMMDD) - 사용 안 함, step 기준으로 계산
         current_date_to: 현재 종료일 (YYYYMMDD) - 사용 안 함, step 기준으로 계산
-        step: 확장 단계 (1=10년, 2=전체)
-        
+        step: 확장 단계 (1=10 년, 2=전체)
+
     Returns:
         확장된 (date_from, date_to) 튜플
     """
     if step == 1:
-        # 10년
+        # 10 년
         return calculate_date_range(10)
     elif step >= 2:
         # 전체 (날짜 제한 없음)
         return None, None
     else:
-        # 기본값: 5년 (이미 적용된 상태)
+        # 기본값: 5 년 (이미 적용된 상태)
         return calculate_date_range(5)
-
