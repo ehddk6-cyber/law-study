@@ -1,7 +1,8 @@
 {
   "mcpServers": {
     "kr-law-mcq": {
-      "url": "https://law-open-data-dedicated-mcp.onrender.com/mcp"
+      "url": "https://law-open-data-dedicated-mcp.onrender.com/mcp",
+      "description": "Render 배포 서버 - 헌법·행정법 객관식 검증용"
     }
   }
 }
