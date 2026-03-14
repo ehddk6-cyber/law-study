@@ -1,8 +1,14 @@
 {
   "mcpServers": {
+    "kr-law-mcq-local": {
+      "type": "http",
+      "url": "http://127.0.0.1:8099/mcp",
+      "description": "로컬 개발 서버"
+    },
     "kr-law-mcq": {
       "type": "http",
-      "url": "http://127.0.0.1:8099/mcp"
+      "url": "https://law-open-data-dedicated-mcp.onrender.com/mcp",
+      "description": "Render 배포 서버 (ChatGPT/Claude 공용)"
     }
   }
 }
