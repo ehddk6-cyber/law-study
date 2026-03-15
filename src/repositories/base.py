@@ -3,19 +3,33 @@ Base Repository - 공통 유틸리티 및 상수
 """
 import os
 import logging
+import sys
 from cachetools import TTLCache
 from typing import Optional
 import re
 import urllib.parse
-from ..core.exceptions import (
-    APIAuthError,
-    APIInvalidResponseError,
-    APINotFoundError,
-    APIRequestError,
-    APITimeoutError,
-    LawMCPError,
-    ValidationError,
-)
+
+# Import exceptions (handle both package and direct import)
+try:
+    from ..core.exceptions import (
+        APIAuthError,
+        APIInvalidResponseError,
+        APINotFoundError,
+        APIRequestError,
+        APITimeoutError,
+        LawMCPError,
+        ValidationError,
+    )
+except ImportError:
+    from core.exceptions import (
+        APIAuthError,
+        APIInvalidResponseError,
+        APINotFoundError,
+        APIRequestError,
+        APITimeoutError,
+        LawMCPError,
+        ValidationError,
+    )
 
 # Logger
 logger = logging.getLogger("lexguard-mcp")

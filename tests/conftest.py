@@ -8,6 +8,7 @@ import os
 # Add src to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
+# Import utilities directly (not through packages)
 from utils.query_planner import (
     extract_keywords,
     expand_synonyms,
@@ -22,6 +23,14 @@ try:
     CONTAINER_AVAILABLE = True
 except ImportError:
     CONTAINER_AVAILABLE = False
+
+# Import repositories and services directly for testing
+try:
+    from repositories.compliance_calendar import ComplianceCalendar, get_compliance_calendar
+    from repositories.compliance_checklists import ComplianceChecklists, get_compliance_checklists
+    REPOS_AVAILABLE = True
+except ImportError:
+    REPOS_AVAILABLE = False
 
 
 @pytest.fixture(scope="session")
