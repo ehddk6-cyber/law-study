@@ -16,6 +16,72 @@ from utils.query_planner import (
     remove_stopwords,
 )
 
+# Import for DI container testing
+try:
+    from core.container import create_container, reset_container, Container
+    CONTAINER_AVAILABLE = True
+except ImportError:
+    CONTAINER_AVAILABLE = False
+
+
+@pytest.fixture(scope="session")
+def test_config():
+    """Test configuration"""
+    return {
+        "LAW_API_KEY": "test_key",
+        "PORT": 8099,
+        "LOG_LEVEL": "DEBUG"
+    }
+
+
+@pytest.fixture(scope="function")
+def container(test_config):
+    """DI container for testing"""
+    if not CONTAINER_AVAILABLE:
+        pytest.skip("DI container not available")
+    
+    # Create fresh container for each test
+    reset_container()
+    container = create_container()
+    container.config.LAW_API_KEY.from_value(test_config["LAW_API_KEY"])
+    
+    yield container
+    
+    # Cleanup
+    reset_container()
+
+
+@pytest.fixture(scope="function")
+def precedent_service(container):
+    """Precedent service from DI container"""
+    if not CONTAINER_AVAILABLE:
+        pytest.skip("DI container not available")
+    return container.precedent_service()
+
+
+@pytest.fixture(scope="function")
+def law_service(container):
+    """Law service from DI container"""
+    if not CONTAINER_AVAILABLE:
+        pytest.skip("DI container not available")
+    return container.law_service()
+
+
+@pytest.fixture(scope="function")
+def compliance_service(container):
+    """Compliance service from DI container"""
+    if not CONTAINER_AVAILABLE:
+        pytest.skip("DI container not available")
+    return container.compliance_service()
+
+
+@pytest.fixture(scope="function")
+def health_service(container):
+    """Health service from DI container"""
+    if not CONTAINER_AVAILABLE:
+        pytest.skip("DI container not available")
+    return container.health_service()
+
 
 @pytest.fixture
 def sample_admin_queries():
