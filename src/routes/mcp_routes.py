@@ -22,6 +22,7 @@ from ..services.legal_source_service import LegalSourceService
 from ..services.law_service import LawService
 from ..services.precedent_service import PrecedentService
 from ..services.compliance_service import ComplianceService
+from .tool_router import ToolRouter
 
 
 def _tool_definitions():
@@ -200,6 +201,15 @@ def register_mcp_routes(
     legal_source_service: LegalSourceService,
     compliance_service: ComplianceService,
 ):
+    # Create ToolRouter for unified tool handling
+    tool_router = ToolRouter(
+        law_service=law_service,
+        precedent_service=precedent_service,
+        health_service=health_service,
+        legal_source_service=legal_source_service,
+        compliance_service=compliance_service,
+    )
+    
     @api.post("/mcp")
     async def mcp(request: Request):
         body = await request.body()
@@ -225,76 +235,17 @@ def register_mcp_routes(
                 return
 
             if method == "tools/list":
-                tools = _tool_definitions()
+                # Use ToolRouter for tool definitions
+                tools = tool_router.get_tool_definitions()
                 yield f"data: {json.dumps({'jsonrpc':'2.0','id':request_id,'result':{'tools':tools}}, ensure_ascii=False)}\n\n"
                 return
 
             if method == "tools/call":
                 name = params.get("name")
                 arguments = params.get("arguments", {})
-                if name == "health":
-                    result = await health_service.check_health()
-                elif name == "search_law_tool":
-                    result = await law_service.search_law(SearchLawRequest(**arguments), arguments=arguments)
-                elif name == "get_law_detail_tool":
-                    result = await law_service.get_law_detail(GetLawDetailRequest(**arguments), arguments=arguments)
-                elif name == "get_law_article_tool":
-                    result = await legal_source_service.get_law_article(GetLawArticleRequest(**arguments), arguments=arguments)
-                elif name == "search_precedent_tool":
-                    result = await precedent_service.search_precedent(SearchPrecedentRequest(**arguments), arguments=arguments)
-                elif name == "get_precedent_tool":
-                    result = await precedent_service.get_precedent(GetPrecedentRequest(**arguments), arguments=arguments)
-                elif name == "search_constitutional_decision_tool":
-                    result = await legal_source_service.search_constitutional_decision(
-                        SearchConstitutionalDecisionRequest(**arguments), arguments=arguments
-                    )
-                elif name == "get_constitutional_decision_tool":
-                    result = await legal_source_service.get_constitutional_decision(
-                        GetConstitutionalDecisionRequest(**arguments), arguments=arguments
-                    )
-                elif name == "search_administrative_appeal_tool":
-                    result = await legal_source_service.search_administrative_appeal(
-                        SearchAdministrativeAppealRequest(**arguments), arguments=arguments
-                    )
-                elif name == "get_administrative_appeal_tool":
-                    result = await legal_source_service.get_administrative_appeal(
-                        GetAdministrativeAppealRequest(**arguments), arguments=arguments
-                    )
-                elif name == "search_administrative_rule_tool":
-                    result = await legal_source_service.search_administrative_rule(
-                        SearchAdministrativeRuleRequest(**arguments), arguments=arguments
-                    )
-                elif name == "search_law_interpretation_tool":
-                    result = await legal_source_service.search_law_interpretation(
-                        SearchLawInterpretationRequest(**arguments), arguments=arguments
-                    )
-                elif name == "get_law_interpretation_tool":
-                    result = await legal_source_service.get_law_interpretation(
-                        GetLawInterpretationRequest(**arguments), arguments=arguments
-                    )
-                elif name == "get_compliance_calendar_tool":
-                    days = arguments.get("days")
-                    month = arguments.get("month")
-                    category = arguments.get("category")
-                    if days:
-                        result = compliance_service.get_upcoming_events(days)
-                    elif month:
-                        result = compliance_service.get_events_by_month(month)
-                    elif category:
-                        result = compliance_service.get_events_by_category(category)
-                    else:
-                        result = compliance_service.get_all_categories()
-                elif name == "get_compliance_checklist_tool":
-                    checklist_id = arguments.get("checklist_id")
-                    keyword = arguments.get("keyword")
-                    if checklist_id:
-                        result = compliance_service.get_checklist(checklist_id)
-                    elif keyword:
-                        result = compliance_service.search_checklists(keyword)
-                    else:
-                        result = compliance_service.get_all_checklists()
-                else:
-                    result = {"error": f"Unknown tool: {name}"}
+                
+                # Use ToolRouter for tool execution
+                result = await tool_router.call_tool(name, arguments)
 
                 payload = {"jsonrpc": "2.0", "id": request_id, "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False)}], "structuredContent": result, "isError": "error" in result}}
                 yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
