@@ -317,15 +317,20 @@ def _build_admin_law_queries(original_query: str) -> List[str]:
         queries.append("소송요건 당사자적격")
 
     # 전략 6: 재량권 관련
-    if "재량" in admin_keywords:
-        if "남용" in admin_keywords or "일탈" in admin_keywords:
+    has_jaeryang = any("재량" in k for k in admin_keywords)
+    if has_jaeryang:
+        has_namyong = any("남용" in k for k in admin_keywords)
+        has_iltal = any("일탈" in k for k in admin_keywords)
+        if has_namyong or has_iltal:
             queries.append("재량권 남용 일탈")
         queries.append("재량권 한계")
 
     # 전략 7: 정보공개·개인정보
-    if "정보공개" in admin_keywords:
+    has_jeongbo = any("정보공개" in k or "정보" in k for k in admin_keywords)
+    has_gaein = any("개인정보" in k for k in admin_keywords)
+    if has_jeongbo:
         queries.append("정보공개청구 비공개")
-    if "개인정보" in admin_keywords:
+    if has_gaein:
         queries.append("개인정보보호 공개제한")
 
     # 전략 8: 행정절차·청문
