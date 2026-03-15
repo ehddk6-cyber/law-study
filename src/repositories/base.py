@@ -7,6 +7,15 @@ from cachetools import TTLCache
 from typing import Optional
 import re
 import urllib.parse
+from ..core.exceptions import (
+    APIAuthError,
+    APIInvalidResponseError,
+    APINotFoundError,
+    APIRequestError,
+    APITimeoutError,
+    LawMCPError,
+    ValidationError,
+)
 
 # Logger
 logger = logging.getLogger("lexguard-mcp")
@@ -29,6 +38,35 @@ LAW_API_SEARCH_URL = "https://www.law.go.kr/DRF/lawSearch.do"  # 법령 검색�
 
 class BaseLawRepository:
     """법령 Repository의 기본 클래스 - 공통 유틸리티 메서드"""
+
+    @staticmethod
+    def error_from_result(result: dict) -> LawMCPError:
+        """표준 에러 dict 를 LawMCPError 로 변환합니다."""
+        code = result.get("error_code") or result.get("missing_reason") or "UNKNOWN_ERROR"
+        message = result.get("error") or "알 수 없는 오류"
+        recovery_guide = result.get("recovery_guide")
+        extra = {k: v for k, v in result.items() if k not in {"error", "error_code", "missing_reason", "recovery_guide"}}
+        extra.setdefault("missing_reason", code)
+
+        if code == "API_ERROR_TIMEOUT":
+            return APITimeoutError(message, recovery_guide=recovery_guide, extra=extra)
+        if code == "API_ERROR_AUTH":
+            return APIAuthError(message, recovery_guide=recovery_guide, extra=extra)
+        if code == "API_ERROR_NOT_FOUND":
+            return APINotFoundError(message, recovery_guide=recovery_guide, extra=extra)
+        if code in {"API_ERROR_INVALID_RESPONSE", "API_ERROR_HTML", "API_ERROR_OTHER"}:
+            return APIInvalidResponseError(message, recovery_guide=recovery_guide, extra=extra)
+        if code == "VALIDATION_ERROR":
+            return ValidationError(message, recovery_guide=recovery_guide, extra=extra)
+        if code == "API_ERROR_REQUEST":
+            return APIRequestError(message, recovery_guide=recovery_guide, extra=extra)
+        return LawMCPError(message, code, recovery_guide=recovery_guide, extra=extra)
+
+    @classmethod
+    def raise_for_error_result(cls, result: Optional[dict]):
+        """에러 dict 면 예외로 승격합니다."""
+        if isinstance(result, dict) and "error" in result:
+            raise cls.error_from_result(result)
 
     @classmethod
     def find_nested_value(cls, data, *keys):

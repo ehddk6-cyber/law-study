@@ -2,8 +2,12 @@
 Tool Router - 통합 도구 라우팅
 MCP 와 HTTP 에서 공통으로 사용하는 도구 라우팅 로직
 """
-import json
-from typing import Dict, Any, Optional
+from typing import Dict, Any
+
+from pydantic import ValidationError as PydanticValidationError
+
+from ..core.error_handler import convert_to_error_dict, handle_api_errors
+from ..core.exceptions import LawMCPError, ToolExecutionError, UnknownToolError, ValidationError
 from ..services.law_service import LawService
 from ..services.precedent_service import PrecedentService
 from ..services.legal_source_service import LegalSourceService
@@ -235,6 +239,8 @@ class ToolRouter:
         """도구 정의 반환"""
         return self.tool_definitions
 
+    @convert_to_error_dict
+    @handle_api_errors
     async def call_tool(self, name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
         """
         도구 호출
@@ -322,11 +328,13 @@ class ToolRouter:
                     return self.compliance_service.get_all_checklists()
             
             else:
-                return {"error": f"Unknown tool: {name}", "error_code": "UNKNOWN_TOOL"}
-        
-        except Exception as e:
-            return {
-                "error": f"도구 호출 중 오류 발생: {str(e)}",
-                "error_code": "TOOL_EXECUTION_ERROR",
-                "tool_name": name,
-            }
+                raise UnknownToolError(name)
+        except PydanticValidationError as exc:
+            raise ValidationError(
+                "입력 파라미터 검증에 실패했습니다.",
+                extra={"tool_name": name, "details": exc.errors()}
+            ) from exc
+        except LawMCPError:
+            raise
+        except Exception as exc:
+            raise ToolExecutionError(str(exc), tool_name=name) from exc

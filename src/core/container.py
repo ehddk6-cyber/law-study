@@ -3,22 +3,22 @@ Dependency Injection Container for LAW-STUDY MCP
 """
 from dependency_injector import containers, providers
 
-from .repositories.law_repository import LawRepository
-from .repositories.law_search import LawSearchRepository
-from .repositories.law_detail import LawDetailRepository
-from .repositories.precedent_repository import PrecedentRepository
-from .repositories.constitutional_decision_repository import ConstitutionalDecisionRepository
-from .repositories.administrative_appeal_repository import AdministrativeAppealRepository
-from .repositories.administrative_rule_repository import AdministrativeRuleRepository
-from .repositories.law_interpretation_repository import LawInterpretationRepository
-from .repositories.compliance_calendar import get_compliance_calendar
-from .repositories.compliance_checklists import get_compliance_checklists
+from ..repositories.law_repository import LawRepository
+from ..repositories.law_search import LawSearchRepository
+from ..repositories.law_detail import LawDetailRepository
+from ..repositories.precedent_repository import PrecedentRepository
+from ..repositories.constitutional_decision_repository import ConstitutionalDecisionRepository
+from ..repositories.administrative_appeal_repository import AdministrativeAppealRepository
+from ..repositories.administrative_rule_repository import AdministrativeRuleRepository
+from ..repositories.law_interpretation_repository import LawInterpretationRepository
+from ..repositories.compliance_calendar import get_compliance_calendar
+from ..repositories.compliance_checklists import get_compliance_checklists
 
-from .services.law_service import LawService
-from .services.precedent_service import PrecedentService
-from .services.legal_source_service import LegalSourceService
-from .services.health_service import HealthService
-from .services.compliance_service import ComplianceService
+from ..services.law_service import LawService
+from ..services.precedent_service import PrecedentService
+from ..services.legal_source_service import LegalSourceService
+from ..services.health_service import HealthService
+from ..services.compliance_service import ComplianceService
 
 
 class Container(containers.DeclarativeContainer):
@@ -28,7 +28,7 @@ class Container(containers.DeclarativeContainer):
     config = providers.Configuration()
 
     # Wire configuration
-    wiring_config = providers.Configuration()
+    wiring_config = containers.WiringConfiguration()
 
     # Repositories
     law_repository = providers.Singleton(LawRepository)

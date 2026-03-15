@@ -14,10 +14,16 @@ from ..utils.evidence_builder import get_evidence_builder
 from ..utils.query_telemetry import get_telemetry
 from ..utils.query_judge import get_query_judge
 from ..utils.axis_query_builder import get_axis_query_builder
+from ..core.exceptions import APIInvalidResponseError, APIRequestError, APITimeoutError, APINotFoundError, ValidationError
 
 
 class PrecedentRepository(BaseLawRepository):
     """판례 검색 및 조회 관련 기능을 담당하는 Repository"""
+
+    @staticmethod
+    def _cache_error(cache_key, error):
+        failure_cache[cache_key] = error.to_dict()
+        raise error
     
     def search_precedent(
         self,
@@ -83,14 +89,12 @@ class PrecedentRepository(BaseLawRepository):
                 params["prncYd"] = f"{date_to}~{date_to}"
             
             _, api_key_error = self.attach_api_key(params, arguments, LAW_API_SEARCH_URL)
-            if api_key_error:
-                return api_key_error
+            self.raise_for_error_result(api_key_error)
             
             response = requests.get(LAW_API_SEARCH_URL, params=params, timeout=10)
             
             invalid_response = self.validate_drf_response(response)
-            if invalid_response:
-                return invalid_response
+            self.raise_for_error_result(invalid_response)
             response.raise_for_status()
             
             try:
@@ -98,12 +102,10 @@ class PrecedentRepository(BaseLawRepository):
             except json.JSONDecodeError as e:
                 error_msg = f"API 응답이 유효한 JSON 형식이 아닙니다: {str(e)}"
                 logger.error("Invalid JSON response | error=%s", str(e))
-                return {
-                    "error": error_msg,
-                    "query": query,
-                    "api_url": response.url,
-                    "raw_response": response.text[:500]
-                }
+                raise APIInvalidResponseError(
+                    error_msg,
+                    extra={"query": query, "api_url": response.url, "raw_response": response.text[:500]}
+                )
             
             result = {
                 "query": query,
@@ -158,33 +160,18 @@ class PrecedentRepository(BaseLawRepository):
             
             return result
             
-        except requests.exceptions.Timeout:
+        except requests.exceptions.Timeout as e:
             error_msg = "API 호출 타임아웃"
             logger.error(error_msg)
-            error_result = {
-                "error_code": "API_ERROR_TIMEOUT",
-                "missing_reason": "API_ERROR_TIMEOUT",
-                "error": error_msg,
-                "recovery_guide": "네트워크 응답 시간이 초과되었습니다. 잠시 후 다시 시도하거나, 인터넷 연결을 확인하세요."
-            }
-            failure_cache[cache_key] = error_result
-            return error_result
+            self._cache_error(cache_key, APITimeoutError(error_msg))
         except requests.exceptions.RequestException as e:
             error_msg = f"API 요청 실패: {str(e)}"
             logger.error(error_msg)
-            error_result = {
-                "error": error_msg,
-                "recovery_guide": "네트워크 오류입니다. 잠시 후 다시 시도하거나, 인터넷 연결을 확인하세요."
-            }
-            failure_cache[cache_key] = error_result
-            return error_result
+            self._cache_error(cache_key, APIRequestError(error_msg))
         except Exception as e:
             error_msg = f"예상치 못한 오류: {str(e)}"
             logger.exception(error_msg)
-            return {
-                "error": error_msg,
-                "recovery_guide": "시스템 오류가 발생했습니다. 서버 로그를 확인하거나 관리자에게 문의하세요."
-            }
+            raise APIRequestError(error_msg) from e
     
     def _search_precedent_internal(
         self,
@@ -221,24 +208,21 @@ class PrecedentRepository(BaseLawRepository):
                 params["prncYd"] = f"{date_to}~{date_to}"
             
             _, api_key_error = self.attach_api_key(params, arguments, LAW_API_SEARCH_URL)
-            if api_key_error:
-                return api_key_error
+            self.raise_for_error_result(api_key_error)
             
             response = requests.get(LAW_API_SEARCH_URL, params=params, timeout=10)
             
             invalid_response = self.validate_drf_response(response)
-            if invalid_response:
-                return invalid_response
+            self.raise_for_error_result(invalid_response)
             response.raise_for_status()
             
             try:
                 data = response.json()
             except json.JSONDecodeError as e:
-                return {
-                    "error": f"API 응답이 유효한 JSON 형식이 아닙니다: {str(e)}",
-                    "query": query,
-                    "api_url": response.url
-                }
+                raise APIInvalidResponseError(
+                    f"API 응답이 유효한 JSON 형식이 아닙니다: {str(e)}",
+                    extra={"query": query, "api_url": response.url}
+                )
             
             result = {
                 "query": query,
@@ -284,23 +268,12 @@ class PrecedentRepository(BaseLawRepository):
             
             return result
             
-        except requests.exceptions.Timeout:
-            return {
-                "error_code": "API_ERROR_TIMEOUT",
-                "missing_reason": "API_ERROR_TIMEOUT",
-                "error": "API 호출 타임아웃",
-                "query": query
-            }
+        except requests.exceptions.Timeout as e:
+            raise APITimeoutError("API 호출 타임아웃", extra={"query": query}) from e
         except requests.exceptions.RequestException as e:
-            return {
-                "error": f"API 요청 실패: {str(e)}",
-                "query": query
-            }
+            raise APIRequestError(f"API 요청 실패: {str(e)}", extra={"query": query}) from e
         except Exception as e:
-            return {
-                "error": f"예상치 못한 오류: {str(e)}",
-                "query": query
-            }
+            raise APIRequestError(f"예상치 못한 오류: {str(e)}", extra={"query": query}) from e
     
     def search_precedent_with_fallback(
         self,
@@ -667,16 +640,15 @@ class PrecedentRepository(BaseLawRepository):
         logger.debug("get_precedent called | precedent_id=%r case_number=%r", precedent_id, case_number)
         
         if not precedent_id and not case_number:
-            return {
-                "error": "precedent_id 또는 case_number 중 하나는 필수입니다.",
-                "recovery_guide": "판례 일련번호(precedent_id) 또는 사건번호(case_number) 중 하나를 입력해주세요."
-            }
+            raise ValidationError(
+                "precedent_id 또는 case_number 중 하나는 필수입니다.",
+                recovery_guide="판례 일련번호(precedent_id) 또는 사건번호(case_number) 중 하나를 입력해주세요."
+            )
         
         # case_number로 검색해서 precedent_id 찾기
         if case_number and not precedent_id:
             search_result = self.search_precedent(query=case_number, per_page=1, arguments=arguments)
-            if "error" in search_result:
-                return search_result
+            self.raise_for_error_result(search_result)
             
             precedents = search_result.get("precedents", [])
             if precedents and isinstance(precedents[0], dict):
@@ -695,10 +667,7 @@ class PrecedentRepository(BaseLawRepository):
                                    precedents[0].get("id"))
             
             if not precedent_id:
-                return {
-                    "error": "판례 ID를 찾을 수 없습니다.",
-                    "case_number": case_number
-                }
+                raise APINotFoundError("판례 ID를 찾을 수 없습니다.", extra={"case_number": case_number})
         
         cache_key = ("precedent_detail", precedent_id)
         
@@ -718,14 +687,12 @@ class PrecedentRepository(BaseLawRepository):
             }
             
             _, api_key_error = self.attach_api_key(params, arguments, LAW_API_BASE_URL)
-            if api_key_error:
-                return api_key_error
+            self.raise_for_error_result(api_key_error)
             
             response = requests.get(LAW_API_BASE_URL, params=params, timeout=10)
             
             invalid_response = self.validate_drf_response(response)
-            if invalid_response:
-                return invalid_response
+            self.raise_for_error_result(invalid_response)
             response.raise_for_status()
             
             try:
@@ -733,11 +700,10 @@ class PrecedentRepository(BaseLawRepository):
             except json.JSONDecodeError as e:
                 error_msg = f"API 응답이 유효한 JSON 형식이 아닙니다: {str(e)}"
                 logger.error("Invalid JSON response | error=%s", str(e))
-                return {
-                    "error": error_msg,
-                    "precedent_id": precedent_id,
-                    "api_url": response.url
-                }
+                raise APIInvalidResponseError(
+                    error_msg,
+                    extra={"precedent_id": precedent_id, "api_url": response.url}
+                )
             
             result = {
                 "precedent_id": precedent_id,
@@ -750,29 +716,16 @@ class PrecedentRepository(BaseLawRepository):
             
             return result
             
-        except requests.exceptions.Timeout:
+        except requests.exceptions.Timeout as e:
             error_msg = "API 호출 타임아웃"
             logger.error(error_msg)
-            error_result = {
-                "error_code": "API_ERROR_TIMEOUT",
-                "missing_reason": "API_ERROR_TIMEOUT",
-                "error": error_msg,
-                "precedent_id": precedent_id,
-                "recovery_guide": "네트워크 응답 시간이 초과되었습니다. 잠시 후 다시 시도하거나, 인터넷 연결을 확인하세요."
-            }
-            failure_cache[cache_key] = error_result
-            return error_result
+            self._cache_error(cache_key, APITimeoutError(error_msg, extra={"precedent_id": precedent_id}))
         except requests.exceptions.RequestException as e:
             error_msg = f"API 요청 실패: {str(e)}"
             logger.error(error_msg)
-            error_result = {"error": error_msg, "precedent_id": precedent_id}
-            failure_cache[cache_key] = error_result
-            return error_result
+            self._cache_error(cache_key, APIRequestError(error_msg, extra={"precedent_id": precedent_id}))
         except Exception as e:
             error_msg = f"예상치 못한 오류: {str(e)}"
             logger.exception(error_msg)
-            return {
-                "error": error_msg,
-                "recovery_guide": "시스템 오류가 발생했습니다. 서버 로그를 확인하거나 관리자에게 문의하세요."
-            }
+            raise APIRequestError(error_msg) from e
 
