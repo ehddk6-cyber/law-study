@@ -3,7 +3,7 @@ name = "law-open-data-dedicated-mcp"
 version = "0.1.0"
 description = "Dedicated Korean law MCP with explicit source-type tools"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 dependencies = [
     "fastmcp",
     "uvicorn",
@@ -12,6 +12,8 @@ dependencies = [
     "requests",
     "cachetools",
     "fastapi",
+    "dependency-injector>=4.41.0",
+    "structlog>=23.2.0",
 ]
 
 [build-system]

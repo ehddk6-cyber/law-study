@@ -41,9 +41,19 @@ if not logger.handlers:
     logger.addHandler(handler)
 logger.propagate = True
 
-# Cache settings
-search_cache = TTLCache(maxsize=200, ttl=1800)  # 검색 결과 30분 캐시
-failure_cache = TTLCache(maxsize=200, ttl=300)  # 실패 요청 5분 캐시
+# Cache settings - 계층별 TTL 전략
+# 조문: 변경 적음, 24 시간 캐시
+law_article_cache = TTLCache(maxsize=500, ttl=86400)
+# 판례: 자주 추가됨, 1 시간 캐시
+precedent_cache = TTLCache(maxsize=300, ttl=3600)
+# 검색 결과: 쿼리 다양, 10 분 캐시
+search_cache = TTLCache(maxsize=200, ttl=600)
+# 실패 요청: 5 분 캐시 (재시도 방지)
+failure_cache = TTLCache(maxsize=200, ttl=300)
+# 헌재결정: 2 시간 캐시
+constitutional_cache = TTLCache(maxsize=200, ttl=7200)
+# 컴플라이언스: 1 시간 캐시
+compliance_cache = TTLCache(maxsize=100, ttl=3600)
 
 # 국가법령정보센터 API 기본 URL
 LAW_API_BASE_URL = "https://www.law.go.kr/DRF/lawService.do"
