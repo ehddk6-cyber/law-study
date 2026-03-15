@@ -18,6 +18,7 @@ from ..services.health_service import HealthService
 from ..services.legal_source_service import LegalSourceService
 from ..services.law_service import LawService
 from ..services.precedent_service import PrecedentService
+from ..services.compliance_service import ComplianceService
 
 
 def register_http_routes(
@@ -26,6 +27,7 @@ def register_http_routes(
     precedent_service: PrecedentService,
     health_service: HealthService,
     legal_source_service: LegalSourceService,
+    compliance_service: ComplianceService,
 ):
     @api.get("/")
     async def root():
@@ -55,6 +57,8 @@ def register_http_routes(
             {"name": "search_administrative_rule_tool"},
             {"name": "search_law_interpretation_tool"},
             {"name": "get_law_interpretation_tool"},
+            {"name": "get_compliance_calendar_tool"},
+            {"name": "get_compliance_checklist_tool"},
         ]
 
     @api.post("/tools/search_law_tool")
@@ -116,3 +120,28 @@ def register_http_routes(
     async def get_law_interpretation(data: dict):
         req = GetLawInterpretationRequest(**data)
         return await legal_source_service.get_law_interpretation(req, arguments=data)
+
+    @api.post("/tools/get_compliance_calendar_tool")
+    async def get_compliance_calendar(data: dict):
+        days = data.get("days")
+        month = data.get("month")
+        category = data.get("category")
+        if days:
+            return compliance_service.get_upcoming_events(days)
+        elif month:
+            return compliance_service.get_events_by_month(month)
+        elif category:
+            return compliance_service.get_events_by_category(category)
+        else:
+            return compliance_service.get_all_categories()
+
+    @api.post("/tools/get_compliance_checklist_tool")
+    async def get_compliance_checklist(data: dict):
+        checklist_id = data.get("checklist_id")
+        keyword = data.get("keyword")
+        if checklist_id:
+            return compliance_service.get_checklist(checklist_id)
+        elif keyword:
+            return compliance_service.search_checklists(keyword)
+        else:
+            return compliance_service.get_all_checklists()

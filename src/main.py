@@ -7,6 +7,7 @@ from .services.health_service import HealthService
 from .services.legal_source_service import LegalSourceService
 from .services.law_service import LawService
 from .services.precedent_service import PrecedentService
+from .services.compliance_service import ComplianceService
 
 logger = setup_logging()
 api = get_api()
@@ -15,9 +16,10 @@ law_service = LawService()
 precedent_service = PrecedentService()
 health_service = HealthService()
 legal_source_service = LegalSourceService()
+compliance_service = ComplianceService()
 
-register_mcp_routes(api, law_service, precedent_service, health_service, legal_source_service)
-register_http_routes(api, law_service, precedent_service, health_service, legal_source_service)
+register_mcp_routes(api, law_service, precedent_service, health_service, legal_source_service, compliance_service)
+register_http_routes(api, law_service, precedent_service, health_service, legal_source_service, compliance_service)
 
 if __name__ == "__main__":
     import uvicorn

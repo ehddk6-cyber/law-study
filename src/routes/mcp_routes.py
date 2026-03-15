@@ -21,6 +21,7 @@ from ..services.health_service import HealthService
 from ..services.legal_source_service import LegalSourceService
 from ..services.law_service import LawService
 from ..services.precedent_service import PrecedentService
+from ..services.compliance_service import ComplianceService
 
 
 def _tool_definitions():
@@ -167,6 +168,27 @@ def _tool_definitions():
                 "required": ["interpretation_id"],
             },
         },
+        {
+            "name": "get_compliance_calendar_tool",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "days": {"type": "integer", "minimum": 1, "maximum": 365},
+                    "month": {"type": "integer", "minimum": 1, "maximum": 12},
+                    "category": {"type": "string"},
+                },
+            },
+        },
+        {
+            "name": "get_compliance_checklist_tool",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "checklist_id": {"type": "string"},
+                    "keyword": {"type": "string"},
+                },
+            },
+        },
     ]
 
 
@@ -176,6 +198,7 @@ def register_mcp_routes(
     precedent_service: PrecedentService,
     health_service: HealthService,
     legal_source_service: LegalSourceService,
+    compliance_service: ComplianceService,
 ):
     @api.post("/mcp")
     async def mcp(request: Request):
@@ -249,6 +272,27 @@ def register_mcp_routes(
                     result = await legal_source_service.get_law_interpretation(
                         GetLawInterpretationRequest(**arguments), arguments=arguments
                     )
+                elif name == "get_compliance_calendar_tool":
+                    days = arguments.get("days")
+                    month = arguments.get("month")
+                    category = arguments.get("category")
+                    if days:
+                        result = compliance_service.get_upcoming_events(days)
+                    elif month:
+                        result = compliance_service.get_events_by_month(month)
+                    elif category:
+                        result = compliance_service.get_events_by_category(category)
+                    else:
+                        result = compliance_service.get_all_categories()
+                elif name == "get_compliance_checklist_tool":
+                    checklist_id = arguments.get("checklist_id")
+                    keyword = arguments.get("keyword")
+                    if checklist_id:
+                        result = compliance_service.get_checklist(checklist_id)
+                    elif keyword:
+                        result = compliance_service.search_checklists(keyword)
+                    else:
+                        result = compliance_service.get_all_checklists()
                 else:
                     result = {"error": f"Unknown tool: {name}"}
 
